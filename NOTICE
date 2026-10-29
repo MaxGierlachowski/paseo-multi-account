@@ -1,0 +1,11 @@
+paseo-multi-account
+Copyright 2026 Max Gierlachowski
+
+This product includes software from Paseo (https://github.com/getpaseo/paseo),
+Copyright (c) 2025-present Mohamed Boudra, licensed under the Apache License,
+Version 2.0. The following files are copied unchanged from the built-in
+claude-usage-source plugin of Paseo 0.12.0:
+
+  server/usage.ts
+  server/stores.ts
+  shared/input.ts

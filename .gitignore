@@ -1,0 +1,20 @@
+# Dependencies: installed by the plugin's build step (npm ci) on install
+node_modules/
+
+# Build and packaging output
+dist/
+*.tsbuildinfo
+*.tgz
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local environment and editor files
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/
+*.swp
