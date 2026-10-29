@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Claude accounts for Paseo</title>
+  <meta name="description" content="A Paseo plugin: several Claude logins behind one Claude provider, with a one-click switch. Keep chatting when an account hits its limit.">
+  <meta property="og:title" content="Claude accounts for Paseo">
+  <meta property="og:description" content="Several Claude logins, one Claude provider, one click to switch.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23D97757' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='5'/%3E%3Cpath d='M20 21a8 8 0 0 0-16 0'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #fbfaf8;
+      --surface: #ffffff;
+      --surface-2: #f3f1ed;
+      --border: #e6e2db;
+      --fg: #1c1b19;
+      --muted: #6b675f;
+      --accent: #d97757;
+      --accent-soft: #f7e6df;
+      --ok: #2f7a4f;
+      --code-bg: #1f1e1c;
+      --code-fg: #f1ede6;
+      --radius: 14px;
+      --shadow: 0 1px 2px rgba(28, 27, 25, .04), 0 8px 24px rgba(28, 27, 25, .06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161514;
+        --surface: #1f1e1c;
+        --surface-2: #272523;
+        --border: #34312e;
+        --fg: #eeeae3;
+        --muted: #a29d94;
+        --accent: #e08a6c;
+        --accent-soft: #3a2a23;
+        --ok: #6cc08f;
+        --code-bg: #0f0f0e;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    :not(pre) > code {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .1em .35em;
+      font-size: .88em;
+    }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+    /* Nav */
+    nav { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px); background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--fg); }
+    .brand:hover { text-decoration: none; }
+    .brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); display: grid; place-items: center; }
+    nav .links { display: flex; gap: 22px; font-size: 14px; }
+    nav .links a { color: var(--muted); }
+    nav .links a:hover { color: var(--fg); text-decoration: none; }
+    @media (max-width: 640px) { nav .links a:not(.gh) { display: none; } }
+
+    /* Hero */
+    .hero { padding: 88px 0 64px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; align-items: center; }
+    @media (max-width: 880px) { .hero { grid-template-columns: 1fr; padding-top: 56px; } }
+    .eyebrow { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    h1 { font-size: clamp(36px, 5.4vw, 56px); line-height: 1.05; letter-spacing: -.025em; margin: 18px 0 16px; }
+    h1 em { font-style: normal; color: var(--accent); }
+    .lead { font-size: 19px; color: var(--muted); max-width: 34em; margin: 0 0 28px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px; border: 1px solid var(--border); color: var(--fg); background: var(--surface); }
+    .btn:hover { text-decoration: none; border-color: var(--muted); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { filter: brightness(1.05); }
+
+    /* Mock header menu */
+    .mock { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+    .mock-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+    .lights { display: flex; gap: 6px; }
+    .lights i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); display: block; }
+    .acct-btn { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; }
+    .mock-body { position: relative; padding: 18px; min-height: 250px; }
+    .chat-line { height: 10px; border-radius: 6px; background: var(--surface-2); margin: 10px 0; }
+    .menu { position: absolute; right: 16px; top: 8px; width: min(320px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; font-size: 14px; }
+    .item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; }
+    .item:hover { background: var(--surface-2); }
+    .item .check { width: 16px; color: var(--ok); flex: none; }
+    .item .name { font-weight: 600; }
+    .item .use { color: var(--muted); margin-left: auto; font-size: 13px; white-space: nowrap; }
+    .item.disabled { opacity: .5; }
+    .bar { height: 4px; border-radius: 4px; background: var(--surface-2); margin-top: 6px; overflow: hidden; }
+    .bar b { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+
+    /* Sections */
+    section { padding: 64px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 10px; }
+    .sub { color: var(--muted); margin: 0 0 36px; max-width: 42em; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    @media (max-width: 880px) { .grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+    .card h3 { margin: 12px 0 6px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .icon { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+
+    /* Steps */
+    .steps { counter-reset: step; display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+    .steps li { counter-increment: step; position: relative; padding: 18px 20px 18px 64px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .steps li::before { content: counter(step); position: absolute; left: 18px; top: 16px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; background: var(--accent-soft); color: var(--accent); }
+    .steps strong { display: block; margin-bottom: 2px; }
+    .steps span { color: var(--muted); font-size: 15px; }
+
+    pre { position: relative; background: var(--code-bg); color: var(--code-fg); border-radius: 12px; padding: 18px 20px; overflow-x: auto; font-size: 14px; line-height: 1.55; margin: 0; }
+    pre .c { color: #8f8a80; }
+    .copy { position: absolute; top: 10px; right: 10px; font: 600 12px/1 inherit; font-family: inherit; color: var(--code-fg); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
+    .copy:hover { background: rgba(255,255,255,.16); }
+
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+    @media (max-width: 880px) { .two { grid-template-columns: 1fr; } }
+    .req { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .req li { display: flex; gap: 10px; align-items: flex-start; }
+    .req svg { flex: none; margin-top: 4px; color: var(--ok); }
+
+    /* Flow */
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 880px) { .flow { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 520px) { .flow { grid-template-columns: 1fr; } }
+    .flow .card { position: relative; }
+    .flow .n { font: 700 12px/1 ui-monospace, Menlo, monospace; color: var(--accent); letter-spacing: .08em; }
+
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; font-size: 15px; }
+    th, td { text-align: left; padding: 13px 18px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: var(--surface-2); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    tr:last-child td { border-bottom: 0; }
+
+    .note { border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 10px 10px 0; padding: 14px 18px; color: var(--muted); font-size: 15px; margin-top: 18px; }
+    .note strong { color: var(--fg); }
+
+    footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="brand-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+      </span>
+      Claude accounts
+    </a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">Good to know</a>
+      <a class="gh" href="https://github.com/MaxGierlachowski/paseo-multi-account">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="wrap hero">
+  <div>
+    <span class="eyebrow"><span class="dot"></span> A plugin for Paseo 0.13+</span>
+    <h1>Several Claude logins.<br><em>One click</em> to switch.</h1>
+    <p class="lead">When one account hits its limit, switch to the next and keep going in the same chat, with the whole history. Every model still shows once in the pickers.</p>
+    <div class="actions">
+      <a class="btn primary" href="#install">Install the plugin</a>
+      <a class="btn" href="https://github.com/MaxGierlachowski/paseo-multi-account">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>
+        View source
+      </a>
+    </div>
+  </div>
+
+  <div class="mock" aria-label="Illustration of the account menu in the Paseo header">
+    <div class="mock-bar">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <span class="acct-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+        Work
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </div>
+    <div class="mock-body">
+      <div class="chat-line" style="width:62%"></div>
+      <div class="chat-line" style="width:84%"></div>
+      <div class="chat-line" style="width:48%"></div>
+      <div class="chat-line" style="width:72%"></div>
+      <div class="menu">
+        <div class="item">
+          <span class="check"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div style="flex:1"><span class="name">Work</span><div class="bar"><b style="width:91%"></b></div></div>
+          <span class="use">5h 91% · wk 64%</span>
+        </div>
+        <div class="item">
+          <span class="check"></span>
+          <div style="flex:1"><span class="name">Personal</span><div class="bar"><b style="width:12%"></b></div></div>
+          <span class="use">5h 12% · wk 30%</span>
+        </div>
+        <div class="item disabled">
+          <span class="check"></span>
+          <div style="flex:1"><span class="name">Side project</span></div>
+          <span class="use">sign in via Settings</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Why this plugin</h2>
+    <p class="sub">Claude Code keeps one login per config directory. Paseo can run each as its own provider, but then every model shows up once per account and a chat is stuck on the account it started on. This plugin puts all your logins behind the one Claude provider.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg></div>
+        <h3>One provider in the pickers</h3>
+        <p>Every model shows once. Your accounts live in the config but stay out of the pickers.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg></div>
+        <h3>Switch from the header</h3>
+        <p>A button in every workspace with a Claude chat shows the account in use and opens a native Paseo menu.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>Chats keep their history</h3>
+        <p>Open chats reload on the new login and resume the same conversation. Busy chats move once their turn ends.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
+        <h3>Usage at a glance</h3>
+        <p>Session (5h) and weekly usage per account, in the menu and in Paseo's own usage bar.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+        <h3>Sign in from anywhere</h3>
+        <p>Finish the sign-in in the browser, or open the link on any device, your phone included, and paste the code.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+        <h3>Managed in Settings</h3>
+        <p>Add accounts, sign in again when a login expires, or remove an account. The header menu only switches.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap two">
+    <div>
+      <h2>Install</h2>
+      <p class="sub" style="margin-bottom:22px">One command. Paseo asks you to trust the plugin, clones it, runs <code>npm ci</code> and loads it.</p>
+      <pre><button class="copy" data-copy="paseo plugin install github:MaxGierlachowski/paseo-multi-account">Copy</button><code>paseo plugin install github:MaxGierlachowski/paseo-multi-account</code></pre>
+      <p class="note">On macOS the CLI ships inside the app: <code>/Applications/Paseo.app/Contents/Resources/bin/paseo</code>. If nothing shows up, check <code>"pluginsEnabled": true</code> in <code>~/.paseo/config.json</code> and restart Paseo.</p>
+    </div>
+    <div>
+      <h2 style="font-size:20px;margin-top:6px">You need</h2>
+      <ul class="req">
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><a href="https://paseo.sh">Paseo</a> 0.13.0 or newer, with plugins enabled</span></li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> (<code>claude</code>) on your <code>PATH</code>; signing in runs <code>claude auth login</code></span></li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><code>npm</code> on your <code>PATH</code>, used once during install</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <h2>Getting started</h2>
+    <p class="sub">Two minutes from install to your first switch.</p>
+    <ol class="steps">
+      <li><strong>Open Settings → Plugins → Claude accounts</strong><span>Everything that changes accounts lives here.</span></li>
+      <li><strong>Add an account</strong><span>Enter a name such as <code>Work</code> and press <b>Add</b>. The plugin creates a provider <code>claude-work</code> with its own <code>~/.claude-work</code> folder and starts the sign-in.</span></li>
+      <li><strong>Sign in</strong><span>Finish it in the browser that opens, or open the link on any device and paste the code into the <b>Code</b> field.</span></li>
+      <li><strong>Repeat for every login you have</strong><span>With two or more accounts, the account button appears in the workspace header.</span></li>
+      <li><strong>Chat on the built-in Claude provider as usual</strong><span>The plugin decides which login each message goes out on. Switch from the header whenever you like.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How switching works</h2>
+    <p class="sub">Switching is global: new chats, reopened chats and every open Claude chat move to the chosen account.</p>
+    <div class="flow">
+      <div class="card"><span class="n">01</span><h3>You pick an account</h3><p>In the header menu. The plugin stores it as the active account.</p></div>
+      <div class="card"><span class="n">02</span><h3>Open chats reload</h3><p>Idle chats right away; chats mid-turn or waiting on a permission once their turn ends.</p></div>
+      <div class="card"><span class="n">03</span><h3>History comes along</h3><p>The chat's transcript is copied into the new account's folder. The original is never changed.</p></div>
+      <div class="card"><span class="n">04</span><h3>Claude resumes</h3><p>Same conversation, new login. The next message runs on the account you picked.</p></div>
+    </div>
+    <p class="note"><strong>Under the hood:</strong> each account is a disabled provider that extends <code>claude</code> and sets its own <code>CLAUDE_CONFIG_DIR</code>. Before Paseo opens a Claude session, the plugin points <code>CLAUDE_CONFIG_DIR</code> at the active account. Details in <a href="https://github.com/MaxGierlachowski/paseo-multi-account/blob/main/OVERVIEW.md">OVERVIEW.md</a>.</p>
+  </div>
+</section>
+
+<section id="use">
+  <div class="wrap">
+    <h2>Where to find what</h2>
+    <p class="sub">The header menu is for switching. Everything else stays in Settings.</p>
+    <table>
+      <thead><tr><th>You want to</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td>Switch account</td><td>Header button → pick an account</td></tr>
+        <tr><td>See usage per account</td><td>Header button, or Paseo's usage bar</td></tr>
+        <tr><td>Add an account</td><td>Settings → Plugins → Claude accounts → <b>Add account</b></td></tr>
+        <tr><td>Sign in again</td><td>Settings → Plugins → Claude accounts → <b>Sign in again</b></td></tr>
+        <tr><td>Remove an account</td><td>Settings → Plugins → Claude accounts → <b>Remove</b> (not the one in use)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap two">
+    <div>
+      <h2>Good to know</h2>
+      <p class="note" style="margin-top:0"><strong>Start chats on Claude, not on an account provider.</strong> Account providers are disabled, and in Paseo 0.13 a disabled provider's chats don't open.</p>
+      <p class="note"><strong>Removing is safe.</strong> Only the provider entry leaves the config. The login and its folder stay on disk and keep being searched, so old chats keep their history.</p>
+      <p class="note"><strong>No toast after switching.</strong> Paseo's menus can't show one; the header button's label changing is the confirmation.</p>
+    </div>
+    <div>
+      <h2>Update or uninstall</h2>
+      <pre><code><span class="c"># pull the latest version</span>
+paseo plugin update claude-accounts-usage
+
+<span class="c"># uninstall (accounts and logins stay)</span>
+paseo plugin remove claude-accounts-usage</code></pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 · Includes code from <a href="https://github.com/getpaseo/paseo">Paseo</a>, see <a href="https://github.com/MaxGierlachowski/paseo-multi-account/blob/main/NOTICE">NOTICE</a></span>
+    <span>Not affiliated with Paseo or Anthropic · <a href="https://github.com/MaxGierlachowski/paseo-multi-account">GitHub</a></span>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll(".copy").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy);
+        button.textContent = "Copied";
+      } catch {
+        button.textContent = "Select and copy";
+      }
+      setTimeout(() => (button.textContent = "Copy"), 1600);
+    });
+  });
+</script>
+</body>
+</html>
