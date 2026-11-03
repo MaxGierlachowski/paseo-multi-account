@@ -10,7 +10,8 @@ import { join, resolve } from "node:path";
 import { z } from "zod";
 import type { UsageAccount, UsageScope } from "@getpaseo/plugin/server/usage";
 import { discover } from "./usage.js";
-import { readState } from "./state.js";
+import { readState, updateState } from "./state.js";
+import { liveAgents } from "./daemon.js";
 
 const ProviderSchema = z
   .object({
@@ -91,13 +92,42 @@ function processEnv(): Record<string, string> {
   );
 }
 
+/**
+ * Keep a login's identity while its token is expired or the profile call fails.
+ *
+ * The built-in discovery keys a login by account + organization only when the profile
+ * resolves; otherwise it falls back to a hash of the credential route, which is a different
+ * card in the usage dialog. Every resolved profile is remembered per config directory, and a
+ * fallback is swapped for the remembered identity.
+ */
+async function withStableIdentity(configDir: string, found: UsageAccount[]): Promise<UsageAccount[]> {
+  const resolved = found.find((usage) => usage.label);
+  if (resolved?.label) {
+    const { identities } = await readState();
+    const known = identities[configDir];
+    if (known?.key !== resolved.key || known.label !== resolved.label) {
+      const identity = { key: resolved.key, label: resolved.label };
+      await updateState((state) => ({
+        ...state,
+        identities: { ...state.identities, [configDir]: identity },
+      }));
+    }
+    return found;
+  }
+  const remembered = (await readState()).identities[configDir];
+  return remembered
+    ? found.map((usage) => ({ ...usage, key: remembered.key, label: remembered.label }))
+    : found;
+}
+
 /** Run the built-in Claude discovery as if a Claude session were running on `account`. */
-export function discoverFor(account: ClaudeAccount): Promise<UsageAccount[]> {
-  return discover({
+export async function discoverFor(account: ClaudeAccount): Promise<UsageAccount[]> {
+  const found = await discover({
     kind: "session",
     provider: "claude",
     env: { ...processEnv(), CLAUDE_CONFIG_DIR: account.configDir },
   });
+  return withStableIdentity(account.configDir, found);
 }
 
 export async function discoverAccounts(scope: UsageScope): Promise<UsageAccount[]> {
@@ -106,17 +136,23 @@ export async function discoverAccounts(scope: UsageScope): Promise<UsageAccount[
     // created on a per-account provider before the switch are covered here; their env carries
     // the CLAUDE_CONFIG_DIR this plugin chose, so the account follows the switch.
     if (scope.provider === "claude" || !(await claudeFamily()).has(scope.provider)) return [];
-    const accounts = await discover({ kind: "session", provider: "claude", env: scope.env });
     const configDir = scope.env.CLAUDE_CONFIG_DIR;
-    const label = (await claudeAccounts()).find((account) => account.configDir === configDir)?.label;
+    const found = await discover({ kind: "session", provider: "claude", env: scope.env });
+    const accounts = configDir ? await withStableIdentity(expandHome(configDir), found) : found;
+    const label = (await claudeAccounts()).find(
+      (account) => configDir && account.configDir === expandHome(configDir),
+    )?.label;
     return accounts.map((account) => ({ ...account, harness: label ?? "Claude" }));
   }
 
   // Two accounts pointing at the same login collapse into one entry; the key is the
   // account + organization once the profile resolves.
   const active = await activeAccount();
+  const shown = await accountsWithLiveClaudeChats();
   const byKey = new Map<string, UsageAccount>();
   for (const account of await claudeAccounts()) {
+    // Paseo's built-in Claude source already has a card for these, under its own source ID.
+    if (shown.has(account.id)) continue;
     const harness = account.id === active?.id ? `${account.label} · active` : account.label;
     for (const usage of await discoverFor(account)) {
       const existing = byKey.get(usage.key);
@@ -127,6 +163,27 @@ export async function discoverAccounts(scope: UsageScope): Promise<UsageAccount[
     }
   }
   return [...byKey.values()];
+}
+
+/**
+ * Accounts an open chat of the built-in "claude" provider runs on. The built-in usage source
+ * lists those logins from the session itself, so listing them here too shows them twice.
+ * Chats on a per-account provider are not covered by the built-in source and don't count.
+ */
+async function accountsWithLiveClaudeChats(): Promise<Set<string>> {
+  try {
+    const [agents, { agents: openedOn }] = await Promise.all([liveAgents(), readState()]);
+    return new Set(
+      agents.flatMap((agent) => {
+        const accountId = agent.provider === "claude" ? openedOn[agent.id] : undefined;
+        return accountId ? [accountId] : [];
+      }),
+    );
+  } catch (error) {
+    // Without the daemon, list every account rather than risk hiding one.
+    console.warn({ err: error }, "Could not list open chats; showing every Claude account");
+    return new Set();
+  }
 }
 
 function slug(name: string): string {

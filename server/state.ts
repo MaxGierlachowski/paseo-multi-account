@@ -13,11 +13,22 @@ const StateSchema = z.object({
   agents: z.record(z.string(), z.string()),
   /** Config directories of removed accounts; old chats may still have their transcript there. */
   retiredConfigDirs: z.array(z.string()).default([]),
+  /**
+   * Config directory → the login it last resolved to. An expired or rate-limited login has no
+   * profile, so without this its usage card would get a new identity and show up twice.
+   */
+  identities: z.record(z.string(), z.object({ key: z.string(), label: z.string() })).default({}),
 });
 
 export type State = z.infer<typeof StateSchema>;
 
-const EMPTY: State = { version: 1, activeAccountId: null, agents: {}, retiredConfigDirs: [] };
+const EMPTY: State = {
+  version: 1,
+  activeAccountId: null,
+  agents: {},
+  retiredConfigDirs: [],
+  identities: {},
+};
 
 function statePath(): string {
   const home = process.env.PASEO_HOME?.trim() || join(homedir(), ".paseo");
@@ -28,7 +39,7 @@ export async function readState(): Promise<State> {
   try {
     return StateSchema.parse(JSON.parse(await readFile(statePath(), "utf8")));
   } catch {
-    return { ...EMPTY, agents: {}, retiredConfigDirs: [] };
+    return { ...EMPTY, agents: {}, retiredConfigDirs: [], identities: {} };
   }
 }
 

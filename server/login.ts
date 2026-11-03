@@ -45,7 +45,7 @@ async function isExecutable(path: string): Promise<boolean> {
 }
 
 /** The daemon may run without a login shell's PATH, so also try the usual install locations. */
-async function claudeBinary(): Promise<string> {
+export async function claudeBinary(): Promise<string> {
   const home = homedir();
   const candidates = [
     ...(process.env.PATH ?? "").split(delimiter).filter(Boolean),

@@ -8,7 +8,8 @@
 // Switching reloads every open Claude chat that runs on another account: idle ones at once,
 // busy ones (mid-turn or waiting on a permission) when their turn ends. A reload closes the
 // Claude process and resumes the same conversation, so the next message goes out on the new
-// account with the whole history.
+// account with the whole history. The new account's login is refreshed once first
+// (./warmup.ts), so the reloaded chats don't race each other refreshing it.
 import type { PluginSessionOpenRequest } from "@getpaseo/plugin/server";
 import type { UsageReport } from "@getpaseo/plugin/server/usage";
 import type { AccountView } from "../shared/rpc.js";
@@ -25,6 +26,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { liveAgents, reloadAgents, removeProvider } from "./daemon.js";
 import { cancelLogin } from "./login.js";
+import { ensureFreshLogin } from "./warmup.js";
 import { readState, updateState } from "./state.js";
 import { claudeSessionId, syncTranscript } from "./transcripts.js";
 import { fetchUsage } from "./usage.js";
@@ -70,6 +72,8 @@ export async function applyActiveAccount(
 export async function switchAccount(accountId: string) {
   const account = (await claudeAccounts()).find((candidate) => candidate.id === accountId);
   if (!account) throw new Error(`Unknown Claude account '${accountId}'`);
+  // Before any chat moves over, so the reloads don't all refresh the same token at once.
+  await ensureFreshLogin(account);
   const state = await updateState((current) => ({ ...current, activeAccountId: account.id }));
   usageCache.clear();
 
