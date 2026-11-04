@@ -42,7 +42,7 @@ export function paseoHome(): string {
   return process.env.PASEO_HOME?.trim() || join(homedir(), ".paseo");
 }
 
-function expandHome(path: string): string {
+export function expandHome(path: string): string {
   if (path === "~") return homedir();
   return path.startsWith("~/") ? join(homedir(), path.slice(2)) : resolve(path);
 }

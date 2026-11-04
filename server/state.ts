@@ -11,6 +11,8 @@ const StateSchema = z.object({
   activeAccountId: z.string().nullable(),
   /** Agent ID → account its live session was last opened on. */
   agents: z.record(z.string(), z.string()),
+  /** Agent ID → account it was created on with PASEO_CLAUDE_ACCOUNT; a switch leaves it there. */
+  pinned: z.record(z.string(), z.string()).default({}),
   /** Config directories of removed accounts; old chats may still have their transcript there. */
   retiredConfigDirs: z.array(z.string()).default([]),
   /**
@@ -26,6 +28,7 @@ const EMPTY: State = {
   version: 1,
   activeAccountId: null,
   agents: {},
+  pinned: {},
   retiredConfigDirs: [],
   identities: {},
 };
@@ -39,7 +42,7 @@ export async function readState(): Promise<State> {
   try {
     return StateSchema.parse(JSON.parse(await readFile(statePath(), "utf8")));
   } catch {
-    return { ...EMPTY, agents: {}, retiredConfigDirs: [], identities: {} };
+    return { ...EMPTY, agents: {}, pinned: {}, retiredConfigDirs: [], identities: {} };
   }
 }
 

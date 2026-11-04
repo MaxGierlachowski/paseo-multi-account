@@ -10,6 +10,10 @@
 // Claude process and resumes the same conversation, so the next message goes out on the new
 // account with the whole history. The new account's login is refreshed once first
 // (./warmup.ts), so the reloaded chats don't race each other refreshing it.
+//
+// A chat started with PASEO_CLAUDE_ACCOUNT in its launch env (provider ID or config directory,
+// e.g. by an orchestrator such as paseo-mcp) is pinned: it stays on that account across
+// reopens and switches.
 import type { PluginSessionOpenRequest } from "@getpaseo/plugin/server";
 import type { UsageReport } from "@getpaseo/plugin/server/usage";
 import type { AccountView } from "../shared/rpc.js";
@@ -19,6 +23,7 @@ import {
   claudeFamily,
   defaultConfigDir,
   discoverFor,
+  expandHome,
   paseoHome,
   type ClaudeAccount,
 } from "./accounts.js";
@@ -35,11 +40,39 @@ import type { UsageInput } from "../shared/input.js";
 /** Chats to reload once their current turn ends. */
 const deferred = new Set<string>();
 
+/** Launch env that pins a chat to one account: a provider ID or a config directory. */
+export const PIN_ENV = "PASEO_CLAUDE_ACCOUNT";
+
+/** The account a session opens on: the chat's pin if it has one, otherwise the active account. */
+async function accountFor(request: PluginSessionOpenRequest): Promise<ClaudeAccount | null> {
+  const accounts = await claudeAccounts();
+  const pinnedId = (await readState()).pinned[request.agentId];
+  const pinned = accounts.find((account) => account.id === pinnedId);
+  if (pinned) return pinned;
+
+  const wanted = request.env[PIN_ENV]?.trim();
+  if (wanted) {
+    const configDir = expandHome(wanted);
+    const account = accounts.find((a) => a.id === wanted || a.configDir === configDir);
+    if (account) {
+      await updateState((state) => ({
+        ...state,
+        pinned: { ...state.pinned, [request.agentId]: account.id },
+      }));
+      return account;
+    }
+    console.warn({ agentId: request.agentId, wanted }, `Unknown ${PIN_ENV}; using the active account`);
+  } else if (pinnedId) {
+    console.warn({ agentId: request.agentId, pinnedId }, "Pinned account is gone; using the active account");
+  }
+  return activeAccount();
+}
+
 export async function applyActiveAccount(
   request: PluginSessionOpenRequest,
 ): Promise<PluginSessionOpenRequest> {
   if (!(await claudeFamily()).has(request.provider)) return request;
-  const account = await activeAccount();
+  const account = await accountFor(request);
   if (!account) return request;
 
   if (request.reason !== "create") {
@@ -79,7 +112,8 @@ export async function switchAccount(accountId: string) {
 
   const family = await claudeFamily();
   const stale = (await liveAgents()).filter(
-    (agent) => family.has(agent.provider) && state.agents[agent.id] !== account.id,
+    (agent) =>
+      family.has(agent.provider) && !state.pinned[agent.id] && state.agents[agent.id] !== account.id,
   );
   const now: string[] = [];
   for (const agent of stale) {

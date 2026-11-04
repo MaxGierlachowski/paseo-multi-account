@@ -64,7 +64,7 @@ Paseo asks you to trust the plugin (plugins run unsandboxed), clones it, install
 | Sign in again (expired login) | Settings → Plugins → Claude accounts → **Sign in again** |
 | Remove an account | Settings → Plugins → Claude accounts → **Remove** (not the one in use) |
 
-Switching is global: new chats, reopened chats and every open Claude chat move to the chosen account.
+Switching is global: new chats, reopened chats and every open Claude chat move to the chosen account. The exception are pinned chats (see below).
 
 ## How it works
 
@@ -81,6 +81,7 @@ flowchart LR
 
 - Each account is a provider in `agents.providers` that extends `claude`, sets its own `CLAUDE_CONFIG_DIR` and is **disabled**, so it stays out of the pickers.
 - Before Paseo opens any Claude session, the plugin points `CLAUDE_CONFIG_DIR` at the active account.
+- A chat created with `PASEO_CLAUDE_ACCOUNT` in its launch env (an account's provider ID such as `claude-work`, or its config folder) is pinned to that account: it opens there every time and a switch leaves it alone. Orchestrators that start chats over the daemon API use this to pick the login per chat.
 - Claude Code stores a conversation under the login that ran it. Before a chat reopens on another login, the plugin copies that one session's transcript over; the source is never changed.
 - Removing an account only takes its provider out of the config. The login and its folder stay on disk, and the folder keeps being searched for transcripts, so old chats keep their history.
 

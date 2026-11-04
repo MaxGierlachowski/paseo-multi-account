@@ -50,6 +50,7 @@ Before any chat moves, the new account's login is refreshed once if its access t
 ## How it works
 
 - `before("agent.session_open")` sets `CLAUDE_CONFIG_DIR` to the active account for every Claude-family session (`claude` and every provider extending it). Paseo applies the launch env after the provider's own env, so this wins.
+- A chat whose launch env carries `PASEO_CLAUDE_ACCOUNT` (provider ID or config directory) is pinned on its first open: the pin goes to `pinned` in `claude-accounts.json`, every later open uses that account instead of the active one, and `switchAccount` skips it. If the pinned account is removed, the chat falls back to the active account.
 - Claude Code stores a conversation under the login that ran it (`<CLAUDE_CONFIG_DIR>/projects/<cwd>/<session>.jsonl`, the `<session>/` folder beside it, and `file-history/<session>/`). Before a session reopens, the newest copy of that one session is copied into the target account; sources are never modified. The session ID comes from the agent's record in `$PASEO_HOME/agents/`.
 - The plugin SDK cannot reopen a session, so reloads go through a loopback connection to the daemon with the local credential in `$PASEO_HOME/local-credential`, the way the `paseo` CLI connects (`server/daemon.ts`).
 - State (the active account, the account each chat's live session was opened on, the config directories of removed accounts, and the login each config directory last resolved to) lives in `$PASEO_HOME/claude-accounts.json`. With no state, the first account in the config is active.
