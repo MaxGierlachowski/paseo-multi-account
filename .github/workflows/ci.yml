@@ -29,7 +29,7 @@ jobs:
           test "$(tar tzf paseo-multi-account-*.tgz | cut -d/ -f1 | sort -u)" = paseo-multi-account
       - name: Install it into a headless Paseo daemon
         run: |
-          npm install -g @getpaseo/cli@0.17.3 --ignore-scripts --no-audit --no-fund
+          npm install -g @getpaseo/cli@0.17.3 --no-audit --no-fund
           scripts/smoke-linux.sh dist/paseo-multi-account-*.tgz
       - uses: actions/upload-artifact@v4
         with:
