@@ -63,9 +63,14 @@ if (native.length) {
 
 await rm(tarball, { force: true });
 const gnu = execFileSync("tar", ["--version"], { encoding: "utf8" }).includes("GNU tar");
+// bsdtar (macOS) would otherwise store extended attributes such as com.apple.provenance as
+// pax headers, which GNU tar on Linux warns about for every file.
 const ownership = gnu
   ? ["--owner=0", "--group=0", "--numeric-owner", "--sort=name"]
-  : ["--uid", "0", "--gid", "0"];
+  : [
+      "--uid", "0", "--gid", "0", "--no-xattrs", "--no-acls",
+      ...(process.platform === "darwin" ? ["--no-mac-metadata"] : []),
+    ];
 // COPYFILE_DISABLE keeps macOS tar from adding AppleDouble (._*) files.
 run("tar", [...ownership, "-czf", tarball, "-C", stage, NAME], {
   env: { ...process.env, COPYFILE_DISABLE: "1" },
