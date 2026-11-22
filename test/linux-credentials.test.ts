@@ -170,6 +170,7 @@ describe("credential location on Linux", () => {
     assert.equal(found[0]?.label, "discover@example.com");
     assert.deepEqual(found[0]?.input, {
       route: { store: "claude", path: join(configDir, ".credentials.json") },
+      accountKey: "u-discover.org-u-discover",
     });
   });
 

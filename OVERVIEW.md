@@ -14,7 +14,7 @@ Each account is a provider in `agents.providers` (`~/.paseo/config.json`, or `$P
 }
 ```
 
-A disabled provider gets no client in Paseo 0.13.2, so chats created on it before stop opening: point their records in `$PASEO_HOME/agents/` at `"provider": "claude"` (top level, `runtimeInfo` and `persistence`) and they follow the switch like any other Claude chat. Installed plugins only run with `"pluginsEnabled": true`.
+A disabled provider gets no client (Paseo 0.13.2 through 0.17.3: creating an agent on one fails with "Provider is disabled"), so chats created on it before stop opening: point their records in `$PASEO_HOME/agents/` at `"provider": "claude"` (top level, `runtimeInfo` and `persistence`) and they follow the switch like any other Claude chat. Installed plugins only run with `"pluginsEnabled": true`.
 
 The easier way is **Settings → Plugins → Claude accounts → Add account**: give it a name ("Work") and it adds `claude-work` as above, with `~/.claude-work` as its config directory, through the daemon (which writes the config and reloads it), then starts signing it in.
 
@@ -56,4 +56,4 @@ Before any chat moves, the new account's login is refreshed once if its access t
 
 Usage and credentials are read the same way as the built-in source (macOS Keychain entry keyed to the config directory, falling back to `<CLAUDE_CONFIG_DIR>/.credentials.json`); the plugin itself never writes them, only Claude Code does (`claude auth login`, and the refresh before a switch). The plugin no longer draws its own usage bars: Paseo's native usage bar shows the usage source the server side registers. The settings screen caches usage for two minutes because the usage endpoint rate-limits hard.
 
-`server/usage.ts`, `server/stores.ts` and `shared/input.ts` are copied unchanged from the built-in plugin of Paseo 0.12.0. Re-copy them after a Paseo update that changes the built-in source. `server/daemon.ts` uses `@getpaseo/client/internal/daemon-client` (reloads and `patchDaemonConfig` for new accounts), which is internal API: re-check it after a Paseo update.
+`server/usage.ts`, `server/stores.ts` and `shared/input.ts` are copied unchanged from the built-in plugin of Paseo 0.17.3 (`dist/server/builtin-plugins/claude-usage-source` in `@getpaseo/server`). Re-copy them after a Paseo update that changes the built-in source. `server/daemon.ts` uses `@getpaseo/client/internal/daemon-client` (reloads and `patchDaemonConfig` for new accounts), which is internal API: re-check it after a Paseo update.
