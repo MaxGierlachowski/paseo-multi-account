@@ -53,10 +53,29 @@ export const switchAccountRpc = defineRpc({
   }),
 });
 
+/** Paseo's provider ID alphabet; the built-in provider IDs are taken. */
+export const ACCOUNT_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
+export const RESERVED_PROVIDER_IDS = ["claude", "codex", "copilot", "opencode", "pi", "omp", "acp"];
+
 export const AddAccountInputSchema = z.object({
   /** Shown as "Claude (<name>)"; also the source of the provider ID and config directory. */
   name: z.string().trim().min(1).max(40),
+  /** Provider ID to use instead of `claude-<name>`. */
+  id: z
+    .string()
+    .regex(ACCOUNT_ID_PATTERN, "Use lowercase letters, digits and dashes, starting with a letter")
+    .max(64)
+    .refine((id) => !RESERVED_PROVIDER_IDS.includes(id), "That ID belongs to a built-in provider")
+    .optional(),
+  /** Absolute CLAUDE_CONFIG_DIR to use instead of `~/.claude-<name>`. */
+  configDir: z
+    .string()
+    .min(1)
+    .refine((dir) => dir.startsWith("/") || /^[A-Za-z]:[\\/]/.test(dir), "Use an absolute path")
+    .optional(),
 });
+
+export type AddAccountInput = z.infer<typeof AddAccountInputSchema>;
 
 export const addAccountRpc = defineRpc({
   name: "accounts.add",

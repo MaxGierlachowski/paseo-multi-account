@@ -16,7 +16,8 @@
     "index.client.tsx",
     "server/",
     "client/",
-    "shared/"
+    "shared/",
+    "bin/"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -33,5 +34,8 @@
     "react-native": "0.81.5",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
+  },
+  "bin": {
+    "paseo-claude-accounts": "bin/paseo-claude-accounts.mjs"
   }
 }
