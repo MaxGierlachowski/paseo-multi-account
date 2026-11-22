@@ -4,7 +4,7 @@
   "description": "Several Claude logins behind the one Claude provider, with a header button to switch between them.",
   "media": [],
   "requirements": {
-    "paseo": ">=0.13.0"
+    "paseo": ">=0.17.0 <0.18"
   },
   "build": [
     [

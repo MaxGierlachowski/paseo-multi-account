@@ -154,7 +154,15 @@ export async function discoverAccounts(scope: UsageScope): Promise<UsageAccount[
     // Paseo's built-in Claude source already has a card for these, under its own source ID.
     if (shown.has(account.id)) continue;
     const harness = account.id === active?.id ? `${account.label} · active` : account.label;
-    for (const usage of await discoverFor(account)) {
+    let found: UsageAccount[];
+    try {
+      found = await discoverFor(account);
+    } catch (error) {
+      // One unreadable login must not hide the others.
+      console.warn({ err: error, accountId: account.id }, "Could not read the Claude login");
+      continue;
+    }
+    for (const usage of found) {
       const existing = byKey.get(usage.key);
       byKey.set(
         usage.key,
@@ -195,15 +203,25 @@ function slug(name: string): string {
 }
 
 /**
- * The provider a new account needs: `claude-<name>` extending "claude", with its own
- * ~/.claude-<name> config directory. Disabled, so the pickers keep showing one Claude.
+ * The provider a new account needs: by default `claude-<name>` extending "claude", with its own
+ * ~/.claude-<name> config directory. A caller that keeps logins elsewhere passes the provider
+ * ID and directory itself. Disabled, so the pickers keep showing one Claude.
  */
-export async function newAccount(name: string): Promise<ClaudeAccount> {
+export async function newAccount(
+  name: string,
+  overrides: { id?: string; configDir?: string } = {},
+): Promise<ClaudeAccount> {
   const base = slug(name);
-  if (!base) throw new Error("Use letters or digits in the account name");
-  const id = `claude-${base}`;
-  if ((await claudeAccounts()).some((account) => account.id === id)) {
-    throw new Error(`An account named '${name}' already exists`);
+  if (!base && !overrides.id) throw new Error("Use letters or digits in the account name");
+  const id = overrides.id ?? `claude-${base}`;
+  const configDir = overrides.configDir
+    ? resolve(overrides.configDir)
+    : join(homedir(), `.claude-${base}`);
+  const existing = await claudeAccounts();
+  if (existing.some((account) => account.id === id)) {
+    throw new Error(`An account named '${id}' already exists`);
   }
-  return { id, label: `Claude (${name.trim()})`, configDir: join(homedir(), `.claude-${base}`) };
+  const sharing = existing.find((account) => account.configDir === configDir);
+  if (sharing) throw new Error(`'${sharing.id}' already uses ${configDir}`);
+  return { id, label: `Claude (${name.trim()})`, configDir };
 }

@@ -18,12 +18,19 @@ import { join } from "node:path";
 const REFRESH_MARGIN_MS = 5 * 60_000;
 const REFRESH_TIMEOUT_MS = 60_000;
 
-/** Where the account's login may live, the same way the built-in usage source looks for it. */
-function credentialInputs(account: ClaudeAccount): UsageInput[] {
+/**
+ * Where the account's login may live, the same way the built-in usage source looks for it.
+ * Linux and every other non-macOS platform keep it only in <CLAUDE_CONFIG_DIR>/.credentials.json;
+ * macOS keeps it in the Keychain under a per-directory service name, with the file as fallback.
+ */
+export function credentialInputs(
+  account: ClaudeAccount,
+  platform: NodeJS.Platform = process.platform,
+): UsageInput[] {
   const file: UsageInput = {
     route: { store: "claude", path: join(account.configDir, ".credentials.json") },
   };
-  if (process.platform !== "darwin") return [file];
+  if (platform !== "darwin") return [file];
   const suffix = hashAccountKey(account.configDir.normalize("NFC")).slice(0, 8);
   return [
     {
@@ -38,9 +45,12 @@ function credentialInputs(account: ClaudeAccount): UsageInput[] {
 }
 
 /** null: no login at all; undefined: a login without an expiry. */
-async function expiresAt(account: ClaudeAccount): Promise<number | null | undefined> {
-  for (const input of credentialInputs(account)) {
-    const credentials = await resolveClaudeCredentials(input);
+export async function expiresAt(
+  account: ClaudeAccount,
+  platform: NodeJS.Platform = process.platform,
+): Promise<number | null | undefined> {
+  for (const input of credentialInputs(account, platform)) {
+    const credentials = await resolveClaudeCredentials(input, { platform });
     if (credentials) return credentials.expires;
   }
   return null;

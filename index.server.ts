@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { inputSchema } from "./shared/input.js";
 import {
@@ -52,8 +53,10 @@ export default function contribute(server: PluginServerContext) {
 
   server.handle(listAccountsRpc, (input) => listAccounts(input));
   server.handle(switchAccountRpc, ({ accountId }) => switchAccount(accountId));
-  server.handle(addAccountRpc, async ({ name }) => {
-    const account = await newAccount(name);
+  server.handle(addAccountRpc, async ({ name, id, configDir }) => {
+    const account = await newAccount(name, { id, configDir });
+    // Claude Code creates the directory on sign-in too; making it here keeps it private.
+    await mkdir(account.configDir, { recursive: true, mode: 0o700 });
     await addProvider(account.id, {
       extends: "claude",
       label: account.label,
