@@ -19,7 +19,8 @@
     "shared/"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@getpaseo/client": "0.17.3",
@@ -30,6 +31,7 @@
     "@types/node": "^26.6.5",
     "@types/react": "19.1.17",
     "react-native": "0.81.5",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
 }

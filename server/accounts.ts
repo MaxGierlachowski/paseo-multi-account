@@ -154,7 +154,15 @@ export async function discoverAccounts(scope: UsageScope): Promise<UsageAccount[
     // Paseo's built-in Claude source already has a card for these, under its own source ID.
     if (shown.has(account.id)) continue;
     const harness = account.id === active?.id ? `${account.label} · active` : account.label;
-    for (const usage of await discoverFor(account)) {
+    let found: UsageAccount[];
+    try {
+      found = await discoverFor(account);
+    } catch (error) {
+      // One unreadable login must not hide the others.
+      console.warn({ err: error, accountId: account.id }, "Could not read the Claude login");
+      continue;
+    }
+    for (const usage of found) {
       const existing = byKey.get(usage.key);
       byKey.set(
         usage.key,

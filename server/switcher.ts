@@ -77,8 +77,17 @@ export async function switchAccount(accountId: string) {
   const state = await updateState((current) => ({ ...current, activeAccountId: account.id }));
   usageCache.clear();
 
+  // The switch itself is done: new sessions open on the account from here on. Moving open
+  // chats over needs the daemon connection; without it they move when they next reopen.
+  let live: Awaited<ReturnType<typeof liveAgents>>;
+  try {
+    live = await liveAgents();
+  } catch (error) {
+    console.warn({ err: error }, "Could not list open chats; they move to the new account on reopen");
+    return { activeId: account.id, reloaded: 0, deferred: deferred.size, failed: [] };
+  }
   const family = await claudeFamily();
-  const stale = (await liveAgents()).filter(
+  const stale = live.filter(
     (agent) => family.has(agent.provider) && state.agents[agent.id] !== account.id,
   );
   const now: string[] = [];
@@ -88,7 +97,12 @@ export async function switchAccount(accountId: string) {
     if (busy) deferred.add(agent.id);
     else now.push(agent.id);
   }
-  const { reloaded, failed } = now.length ? await reloadAgents(now) : { reloaded: [], failed: [] };
+  const { reloaded, failed } = now.length
+    ? await reloadAgents(now).catch((error) => {
+        console.warn({ err: error }, "Could not reload open chats on the new Claude account");
+        return { reloaded: [] as string[], failed: now };
+      })
+    : { reloaded: [], failed: [] };
   return { activeId: account.id, reloaded: reloaded.length, deferred: deferred.size, failed };
 }
 
@@ -141,10 +155,32 @@ function usageView(report: UsageReport): AccountView["usage"] {
   return { status: "unavailable", planLabel: null, windows: [], message };
 }
 
+function failedUsage(error: unknown): AccountView["usage"] {
+  return {
+    status: "error",
+    planLabel: null,
+    windows: [],
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+/**
+ * The account's login and usage. Never throws: a missing or unreadable login is "unavailable"
+ * (sign in again), and a failure reading usage is "error" with the reason, so the account is
+ * always listed and a broken login or a down usage API cannot take the plugin with it.
+ */
 async function readUsage(account: ClaudeAccount, force: boolean) {
   const cached = usageCache.get(account.id);
   if (!force && cached && Date.now() - cached.at < USAGE_TTL_MS) return cached.view;
-  const [login] = await discoverFor(account);
+  let login: Awaited<ReturnType<typeof discoverFor>>[number] | undefined;
+  try {
+    [login] = await discoverFor(account);
+  } catch (error) {
+    console.warn({ err: error, accountId: account.id }, "Could not read the Claude login");
+    const view = { email: null, usage: failedUsage(error) };
+    usageCache.set(account.id, { at: Date.now(), view });
+    return view;
+  }
   let view: Pick<AccountView, "email" | "usage">;
   if (!login) {
     view = {
@@ -156,12 +192,7 @@ async function readUsage(account: ClaudeAccount, force: boolean) {
     try {
       usage = usageView(await fetchUsage(login.input as UsageInput));
     } catch (error) {
-      usage = {
-        status: "error",
-        planLabel: null,
-        windows: [],
-        message: error instanceof Error ? error.message : String(error),
-      };
+      usage = failedUsage(error);
     }
     view = { email: login.label ?? null, usage };
   }
